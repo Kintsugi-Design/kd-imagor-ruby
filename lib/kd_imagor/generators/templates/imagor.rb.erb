@@ -1,0 +1,25 @@
+# frozen_string_literal: true
+
+KdImagor.configure do |config|
+  config.host = ENV.fetch("IMAGOR_URL", nil)
+  config.secret = ENV.fetch("IMAGOR_SECRET", nil)
+  config.signer_type = :sha1
+  config.signer_truncate = nil
+
+  config.default_quality = 80
+  config.default_format = nil
+  config.default_fit = "fit-in"
+  config.auto_webp = true
+  config.auto_avif = false
+
+<% if options[:minio] %>
+  config.minio_endpoint = ENV.fetch("MINIO_ENDPOINT", nil)
+  config.minio_bucket = ENV.fetch("MINIO_BUCKET", "<%= bucket_name %>")
+  config.minio_access_key = ENV.fetch("MINIO_ACCESS_KEY", nil)
+  config.minio_secret_key = ENV.fetch("MINIO_SECRET_KEY", nil)
+  config.minio_region = ENV.fetch("MINIO_REGION", "us-east-1")
+<% end %>
+
+  config.presigned_url_expires_in = 1.hour
+  config.unsafe_mode = Rails.env.development? && ENV["IMAGOR_UNSAFE"] == "1"
+end
