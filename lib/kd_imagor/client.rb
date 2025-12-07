@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "net/http"
+require "uri"
+
 module KdImagor
   class Client
     attr_reader :config, :url_builder
@@ -7,6 +10,55 @@ module KdImagor
     def initialize(config = KdImagor.configuration)
       @config = config
       @url_builder = UrlBuilder.new(config)
+    end
+
+    def s3_signer
+      raise MinioError, "MinIO is not configured" unless config.minio_configured?
+
+      @s3_signer ||= S3Signer.new(
+        endpoint: config.minio_endpoint,
+        access_key: config.minio_access_key,
+        secret_key: config.minio_secret_key,
+        region: config.minio_region
+      )
+    end
+
+    def presigned_url(key, expires_in: nil)
+      expires_in ||= config.presigned_url_expires_in || 3600
+      s3_signer.presigned_get_url(config.minio_bucket, key, expires_in: expires_in)
+    end
+
+    def presigned_upload_url(key, content_type: nil, expires_in: nil)
+      expires_in ||= config.presigned_url_expires_in || 3600
+      s3_signer.presigned_put_url(config.minio_bucket, key, content_type: content_type, expires_in: expires_in)
+    end
+
+    def imagor_healthy?(timeout: nil)
+      timeout ||= config.health_check_timeout || 5
+      uri = URI.parse(config.host)
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = uri.scheme == "https"
+      http.open_timeout = timeout
+      http.read_timeout = timeout
+      response = http.head("/")
+      response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPRedirection)
+    rescue
+      false
+    end
+
+    def minio_healthy?(timeout: nil)
+      return false unless config.minio_configured?
+
+      timeout ||= config.health_check_timeout || 5
+      uri = URI.parse("#{config.minio_endpoint}/#{config.minio_bucket}")
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = uri.scheme == "https"
+      http.open_timeout = timeout
+      http.read_timeout = timeout
+      response = http.head(uri.path)
+      response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPRedirection)
+    rescue
+      false
     end
 
     def url(source, width: 0, height: 0, **options)
@@ -63,9 +115,8 @@ module KdImagor
       elsif attachment.respond_to?(:service_url)
         attachment.service_url(expires_in: expires_in)
       end
-    rescue StandardError => e
-      Rails.logger.error("KdImagor - Failed to resolve ActiveStorage URL: #{e.message}") if defined?(Rails)
-      nil
+    rescue => e
+      raise AttachmentError, "Failed to resolve ActiveStorage URL: #{e.message}"
     end
   end
 end

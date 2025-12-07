@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-12-08
+
+### Added
+- `S3Signer` class with pure Ruby S3 Signature V4 implementation (no aws-sdk dependency)
+- `Client#presigned_url` for generating MinIO presigned GET URLs
+- `Client#presigned_upload_url` for generating presigned PUT URLs (direct browser uploads)
+- `Client#imagor_healthy?` and `Client#minio_healthy?` health check methods
+- New exception classes: `ConnectionError`, `AttachmentError`, `MinioError`
+- `health_check_timeout` configuration option
+
+### Changed
+- `presigned_url_expires_in` now defaults to 3600 (integer) instead of `1.hour` for standalone Ruby compatibility
+- `resolve_active_storage_url` now raises `AttachmentError` instead of silently returning nil
+
 ## [0.1.0] - 2025-12-06
 
 ### Added

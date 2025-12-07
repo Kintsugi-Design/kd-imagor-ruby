@@ -5,7 +5,7 @@ module KdImagor
     attr_accessor :host, :secret, :signer_type, :signer_truncate
     attr_accessor :default_quality, :default_format, :default_fit
     attr_accessor :minio_endpoint, :minio_bucket, :minio_access_key, :minio_secret_key, :minio_region
-    attr_accessor :presigned_url_expires_in
+    attr_accessor :presigned_url_expires_in, :health_check_timeout
     attr_accessor :unsafe_mode, :auto_webp, :auto_avif
 
     def initialize
@@ -24,7 +24,8 @@ module KdImagor
       @minio_secret_key = ENV.fetch("MINIO_SECRET_KEY", nil)
       @minio_region = ENV.fetch("MINIO_REGION", "us-east-1")
 
-      @presigned_url_expires_in = 1.hour if defined?(ActiveSupport::Duration)
+      @presigned_url_expires_in = 3600
+      @health_check_timeout = 5
 
       @unsafe_mode = false
       @auto_webp = true

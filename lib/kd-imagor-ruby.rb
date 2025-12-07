@@ -5,6 +5,7 @@ require_relative "kd_imagor/configuration"
 require_relative "kd_imagor/client"
 require_relative "kd_imagor/url_builder"
 require_relative "kd_imagor/filters"
+require_relative "kd_imagor/s3_signer"
 
 require_relative "kd_imagor/railtie" if defined?(Rails::Railtie)
 
@@ -12,6 +13,9 @@ module KdImagor
   class Error < StandardError; end
   class ConfigurationError < Error; end
   class SignatureError < Error; end
+  class ConnectionError < Error; end
+  class AttachmentError < Error; end
+  class MinioError < Error; end
 
   class << self
     attr_writer :configuration

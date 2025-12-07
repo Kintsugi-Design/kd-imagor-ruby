@@ -9,6 +9,10 @@ Ruby gem for [Imagor](https://github.com/cshum/imagor) image processing with Rai
 - **Active Storage Integration** - Seamless integration with Rails Active Storage
 - **MinIO Support** - Built-in configuration for MinIO S3-compatible storage
 - **Responsive Images** - Automatic srcset generation
+- **Direct Presigned URLs** - Generate MinIO presigned URLs without Rails/Active Storage
+- **Direct Uploads** - Generate presigned PUT URLs for browser-to-MinIO uploads
+- **Health Checks** - Verify Imagor and MinIO connectivity
+- **Standalone Ruby** - Works without Rails dependency
 
 ## Installation
 
@@ -61,6 +65,10 @@ KdImagor.configure do |config|
   config.minio_bucket = ENV["MINIO_BUCKET"]
   config.minio_access_key = ENV["MINIO_ACCESS_KEY"]
   config.minio_secret_key = ENV["MINIO_SECRET_KEY"]
+
+  # Timeouts
+  config.presigned_url_expires_in = 3600  # 1 hour
+  config.health_check_timeout = 5         # seconds
 end
 ```
 
@@ -216,6 +224,118 @@ cover = client.cover(source, width: 1200, height: 630)
 srcset = client.srcset(source, widths: [320, 640, 1024])
 ```
 
+## MinIO Presigned URLs
+
+Generate presigned URLs directly without Active Storage:
+
+```ruby
+client = KdImagor.client
+
+# Generate a presigned GET URL (for downloading/viewing)
+download_url = client.presigned_url("uploads/image.jpg")
+download_url = client.presigned_url("uploads/image.jpg", expires_in: 7200)
+
+# Generate a presigned PUT URL (for direct uploads)
+upload_url = client.presigned_upload_url("uploads/new-image.jpg", content_type: "image/jpeg")
+```
+
+## Direct Browser Uploads
+
+Enable direct browser-to-MinIO uploads:
+
+```ruby
+# In your controller
+def presign_upload
+  key = "uploads/#{SecureRandom.uuid}/#{params[:filename]}"
+  upload_url = KdImagor.client.presigned_upload_url(key, content_type: params[:content_type])
+
+  render json: { upload_url: upload_url, key: key }
+end
+```
+
+```javascript
+// In your frontend
+const response = await fetch('/presign_upload', {
+  method: 'POST',
+  body: JSON.stringify({ filename: file.name, content_type: file.type })
+});
+const { upload_url } = await response.json();
+
+await fetch(upload_url, {
+  method: 'PUT',
+  body: file,
+  headers: { 'Content-Type': file.type }
+});
+```
+
+## Health Checks
+
+Verify connectivity to Imagor and MinIO:
+
+```ruby
+client = KdImagor.client
+
+# Check if Imagor server is reachable
+if client.imagor_healthy?
+  puts "Imagor is up!"
+end
+
+# Check if MinIO is reachable
+if client.minio_healthy?
+  puts "MinIO is up!"
+end
+
+# With custom timeout
+client.imagor_healthy?(timeout: 10)
+client.minio_healthy?(timeout: 10)
+```
+
+## Error Handling
+
+The gem provides specific exception classes:
+
+```ruby
+begin
+  url = KdImagor.client.presigned_url("image.jpg")
+rescue KdImagor::ConfigurationError => e
+  # Missing or invalid configuration
+rescue KdImagor::MinioError => e
+  # MinIO not configured or credentials invalid
+rescue KdImagor::AttachmentError => e
+  # Failed to resolve Active Storage attachment
+rescue KdImagor::ConnectionError => e
+  # Network connectivity issues
+rescue KdImagor::SignatureError => e
+  # Signature generation failed
+end
+```
+
+## Standalone Ruby Usage
+
+Use without Rails or Active Storage:
+
+```ruby
+require "kd-imagor-ruby"
+
+KdImagor.configure do |config|
+  config.host = "https://imagor.example.com"
+  config.secret = "your-secret"
+  config.minio_endpoint = "https://minio.example.com"
+  config.minio_bucket = "my-bucket"
+  config.minio_access_key = "access-key"
+  config.minio_secret_key = "secret-key"
+end
+
+client = KdImagor.client
+
+# Generate Imagor URLs from any source URL
+url = client.url("https://example.com/image.jpg", width: 400, height: 300)
+
+# Generate MinIO presigned URLs
+presigned = client.presigned_url("path/to/image.jpg")
+upload_url = client.presigned_upload_url("uploads/new.jpg", content_type: "image/jpeg")
+```
+
 ## Architecture
 
 ```
@@ -237,6 +357,7 @@ lib/
     ├── configuration.rb     # Config DSL
     ├── client.rb            # URL generation client
     ├── url_builder.rb       # Imagor URL building
+    ├── s3_signer.rb         # S3 Signature V4 (MinIO presigned URLs)
     ├── filters.rb           # Preset filters
     ├── railtie.rb           # Rails integration
     ├── view_helpers.rb      # View helpers
